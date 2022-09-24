@@ -6,8 +6,9 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
 const ejs = require("ejs");
+const saltRounds = 10;
 
 const app = express();
 
@@ -23,9 +24,9 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-const enKey = process.env.ENKEY;
-const sigKey = process.env.SIGKEY;
-userSchema.plugin(encrypt, {encryptionKey: enKey, signingKey: sigKey, encryptedFields: ["password"]});
+// const enKey = process.env.ENKEY;
+// const sigKey = process.env.SIGKEY;
+// userSchema.plugin(encrypt, {encryptionKey: enKey, signingKey: sigKey, encryptedFields: ["password"]});
 
 const User = new mongoose.model("User", userSchema);
 
@@ -44,17 +45,22 @@ app.get("/register", function(req, res){
 
 
 app.post("/register", function(req, res){
-    const user = new User({
-        username: req.body.username,
-        password: req.body.password
+
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+        const user = new User({
+            username: req.body.username,
+            password: hash
+        });
+        user.save(function(err){
+            if(err){
+                res.send(err);
+            }else{
+                res.render("secrets");
+            }
+        });
     });
-    user.save(function(err){
-        if(err){
-            res.send(err);
-        }else{
-            res.render("secrets");
-        }
-    });
+
+   
 });
 
 app.post("/login", function(req, res){
@@ -65,8 +71,13 @@ app.post("/login", function(req, res){
         if(err){
             res.send(err);
         }else{
-            if(foundUser.password === password){
-                res.render("secrets");
+            if(foundUser){
+                bcrypt.compare(password, foundUser.password, function(err, result) {
+                    if(result === true){
+                        res.render("secrets");
+                    }
+                });
+                
             }
         }
     });
